@@ -11,7 +11,7 @@ try {
     if ($manifest.InternalName -ne 'xivtrade' -or $manifest.DalamudApiLevel -ne 15) {
         throw 'Unexpected plugin manifest.'
     }
-    $files = @('xivtrade.dll', 'xivtrade.deps.json', 'xivtrade.json') |
+    $files = @('xivtrade.dll', 'xivtrade.deps.json', 'xivtrade.json', 'icon.png') |
         ForEach-Object { Join-Path $output $_ }
     foreach ($file in $files) {
         if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing package file: $file" }

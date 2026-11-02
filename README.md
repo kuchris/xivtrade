@@ -1,5 +1,7 @@
 # xivtrade
 
+<p align="center"><img src="images/icon.png" width="128" alt="xivtrade icon"></p>
+
 A small Dalamud plugin for sending and receiving gil.
 
 - **Send:** select a player, enter the total, and press **Send gil**. Totals over 1,000,000 gil are split across consecutive trades. The recipient stays pinned even if you change targets.
@@ -19,6 +21,16 @@ Trades containing items, unexpected outgoing gil in receive mode, changed offers
 
 `/giltrade` remains an alias, including `/giltrade <amount>`.
 
+## Install
+
+Add this URL in `/xlsettings` → **Experimental** → **Custom Plugin Repositories**, enable it, and save:
+
+```text
+https://raw.githubusercontent.com/kuchris/DalamudPlugins/main/repo.json
+```
+
+Open `/xlplugins` and install **xivtrade**. If Gillionaire is installed, disable or remove it first: xivtrade has a new plugin identity and both register `/giltrade`.
+
 ## Development install
 
 Requires Dalamud API 15. Disable Gillionaire before loading xivtrade: both register `/giltrade`.
@@ -34,7 +46,7 @@ Requires Windows, .NET 10, and the matching Dalamud development assemblies at `%
 dotnet run --project tests/xivtrade.Checks.csproj --configuration Release
 ```
 
-The build script restores locked dependencies and produces `artifacts/xivtrade-1.0.0.0.zip` with a SHA256 checksum. The ZIP contains the DLL, manifest, dependency metadata, license, and attribution notice.
+The build script restores locked dependencies and produces `artifacts/xivtrade-1.0.0.0.zip` with a SHA256 checksum. The ZIP contains the DLL, manifest, dependency metadata, icon, license, and attribution notice.
 
 Offline checks cover session behavior. Native trade requests, agent events, and ownership of confirmation dialogs still need verification inside the matching live game build. Only confirmation dialogs linked to the Trade addon are eligible for automatic acceptance; an unrecognized dialog pauses the trade until it is closed or the session times out.
 

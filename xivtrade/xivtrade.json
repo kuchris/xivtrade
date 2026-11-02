@@ -2,6 +2,7 @@
   "Author": "kuchris",
   "Name": "xivtrade",
   "RepoUrl": "https://github.com/kuchris/xivtrade",
+  "IconUrl": "https://raw.githubusercontent.com/kuchris/xivtrade/1.0.0.0/images/icon.png",
   "Punchline": "Send and receive gil with a simple trade window.",
   "Description": "Send gil across consecutive trades, or automatically receive pure gil trades from any player. Use /xivtrade.",
   "ApplicableVersion": "any",

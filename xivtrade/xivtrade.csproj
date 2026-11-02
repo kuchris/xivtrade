@@ -8,8 +8,12 @@
     <Punchline>Send and receive gil with a simple trade window.</Punchline>
     <Description>Send gil across consecutive trades, or automatically receive pure gil trades from any player. Use /xivtrade.</Description>
     <RepoUrl>https://github.com/kuchris/xivtrade</RepoUrl>
+    <IconUrl>https://raw.githubusercontent.com/kuchris/xivtrade/1.0.0.0/images/icon.png</IconUrl>
     <Tags>gil;trade</Tags>
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="../images/icon.png" Link="icon.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
