@@ -3,7 +3,7 @@ using System;
 namespace XivTrade;
 
 internal enum TradeMode { Send, Receive }
-internal enum TradeStep { None, Open, SetGil, Lock, Confirm, AcceptDialog, Cancel }
+internal enum TradeStep { None, Open, SetGil, Lock, Confirm, AcceptDialog, Cancel, Completed }
 
 // Values match the client's TradeState enum. Kept independent for offline verification.
 internal readonly record struct TradeSnapshot(
@@ -46,10 +46,14 @@ internal sealed class TradeSession
         if (mode == TradeMode.Send && (recipient == 0 || amount <= 0 || amount > MaxGil))
             return Fail("Select a player and enter a valid gil amount.");
         if (mode == TradeMode.Send && s.Wallet < amount) return Fail("Not enough gil.");
+        if (mode == TradeMode.Receive && (amount < 0 || amount > MaxGil))
+            return Fail("Enter a valid receive target, or zero for unlimited receiving.");
         if (mode == TradeMode.Receive && s.Wallet >= MaxGil) return Fail("Your wallet is full.");
+        if (mode == TradeMode.Receive && amount > MaxGil - s.Wallet)
+            return Fail("The receive target exceeds your wallet's remaining capacity.");
         Mode = mode;
         RecipientId = recipient;
-        Total = mode == TradeMode.Send ? amount : 0;
+        Total = amount;
         Completed = 0;
         Trades = 0;
         ResetTrade(now);
@@ -91,10 +95,11 @@ internal sealed class TradeSession
                 {
                     Completed += lockedOffer;
                     Trades++;
-                    if (Mode == TradeMode.Send && Remaining == 0)
+                    if (Total > 0 && Remaining == 0)
                     {
-                        Stop($"Sent {Completed:N0} gil in {Trades:N0} trades.");
-                        return TradeStep.None;
+                        var action = Mode == TradeMode.Send ? "Sent" : "Received";
+                        Stop($"{action} {Completed:N0} gil in {Trades:N0} trades.");
+                        return TradeStep.Completed;
                     }
                     ResetTrade(now);
                     if (Mode == TradeMode.Receive && s.Wallet >= MaxGil)
@@ -136,6 +141,8 @@ internal sealed class TradeSession
             return Reject("Incoming gil detected while sending. Automation stopped.");
         if (amount < 0 || amount > PerTrade || (Mode == TradeMode.Receive && s.Wallet + amount > MaxGil))
             return Reject("The offered gil exceeds the trade or wallet limit.");
+        if (Mode == TradeMode.Receive && Total > 0 && amount > Remaining)
+            return Reject($"Offer exceeds the remaining receive target of {Remaining:N0} gil. Automation stopped.");
         if (Mode == TradeMode.Send && s.Wallet < amount)
             return Reject("Not enough gil for the next trade.");
         if (lockRequested && (amount != lockedOffer || s.LocalGil != (Mode == TradeMode.Send ? lockedOffer : 0)))

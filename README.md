@@ -5,8 +5,9 @@
 A small Dalamud plugin for sending and receiving gil.
 
 - **Send:** select a player, enter the total, and press **Send gil**. Totals over 1,000,000 gil are split across consecutive trades. The recipient stays pinned even if you change targets.
-- **Receive:** press **Start receiving** to automatically accept pure gil trades from any player. Keep receiving until you press **Stop** or your wallet is full. The sender initiates each trade and locks their offer first.
+- **Receive:** press **Start receiving** to automatically accept pure gil trades from any player. Enable **Stop at target amount** to receive a specified total, or keep receiving until you press **Stop** or your wallet is full. The sender initiates each trade and locks their offer first. Offers above a target's remaining amount are canceled.
 - **Stop:** stops automation and cancels the open trade. Completed trades remain in the session totals.
+- **Completion sound:** play the game's `<se.6>` once after the specified send or receive total is verified. Disable it with the checkbox or preview it with **Test**. The setting is saved. Partial, canceled, and unlimited receive trades do not trigger the completion sound.
 
 Trades containing items, unexpected outgoing gil in receive mode, changed offers, or a different recipient stop automation. Progress advances only after the trade window closes and the exact expected wallet change is observed. Canceled or unverified trades do not count as completed.
 
@@ -17,6 +18,7 @@ Trades containing items, unexpected outgoing gil in receive mode, changed offers
 | `/xivtrade` | Open the window |
 | `/xivtrade send 2500000` | Send 2,500,000 gil to the selected player |
 | `/xivtrade receive` | Receive gil from any player until stopped |
+| `/xivtrade receive 2500000` | Receive exactly 2,500,000 gil in total, then stop |
 | `/xivtrade stop` | Stop automation |
 
 `/giltrade` remains an alias, including `/giltrade <amount>`.
@@ -46,7 +48,7 @@ Requires Windows, .NET 10, and the matching Dalamud development assemblies at `%
 dotnet run --project tests/xivtrade.Checks.csproj --configuration Release
 ```
 
-The build script restores locked dependencies and produces `artifacts/xivtrade-1.0.0.0.zip` with a SHA256 checksum. The ZIP contains the DLL, manifest, dependency metadata, icon, license, and attribution notice.
+The build script restores locked dependencies and produces `artifacts/xivtrade-1.0.1.0.zip` with a SHA256 checksum. The ZIP contains the DLL, manifest, dependency metadata, icon, license, and attribution notice.
 
 Offline checks cover session behavior. Native trade requests, agent events, and ownership of confirmation dialogs still need verification inside the matching live game build. Only confirmation dialogs linked to the Trade addon are eligible for automatic acceptance; an unrecognized dialog pauses the trade until it is closed or the session times out.
 

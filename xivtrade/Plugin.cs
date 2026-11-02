@@ -6,6 +6,7 @@ using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using FFXIVClientStructs.FFXIV.Client.UI;
 
 namespace XivTrade;
 
@@ -24,6 +25,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly WindowSystem windows = new("xivtrade");
     private readonly MainWindow window;
     private readonly TradeClient client;
+    internal Configuration Settings { get; }
     internal TradeSession Session { get; } = new();
     internal string PartnerName { get; private set; } = "Any player";
     internal string TargetName => SelectedPlayer?.Name.TextValue ?? "Select a player";
@@ -31,6 +33,7 @@ public sealed class Plugin : IDalamudPlugin
 
     public Plugin()
     {
+        Settings = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         client = new TradeClient(GameGui, ClientState);
         window = new MainWindow(this);
         windows.AddWindow(window);
@@ -40,7 +43,7 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenConfigUi += Toggle;
         var command = new CommandInfo(OnCommand)
         {
-            HelpMessage = "Open xivtrade: /xivtrade | send <gil> | receive | stop",
+            HelpMessage = "Open xivtrade: /xivtrade | send <gil> | receive [target] | stop",
         };
         Commands.AddHandler("/xivtrade", command);
         Commands.AddHandler("/giltrade", command);
@@ -77,7 +80,13 @@ public sealed class Plugin : IDalamudPlugin
                 Session.Stop("The recipient is no longer nearby. Automation stopped.");
                 return;
             }
-            client.Execute(Session.Tick(client.Read(), Environment.TickCount64), Session);
+            var step = Session.Tick(client.Read(), Environment.TickCount64);
+            if (step == TradeStep.Completed)
+            {
+                if (Settings.CompletionSoundEnabled) PlayCompletionSound();
+            }
+            else
+                client.Execute(step, Session);
         }
         catch (Exception ex) { HandleError(ex); }
     }
@@ -88,18 +97,36 @@ public sealed class Plugin : IDalamudPlugin
         Log.Error(ex, "xivtrade automation error");
     }
 
+    internal void SaveSettings() => PluginInterface.SavePluginConfig(Settings);
+
+    internal void PlayCompletionSound()
+    {
+        try { UIGlobals.PlayChatSoundEffect(6); }
+        catch (Exception ex) { Log.Error(ex, "Could not play the completion sound."); }
+    }
+
     private void OnCommand(string command, string args)
     {
         var parts = args.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0) { Toggle(); return; }
         if (parts[0].Equals("stop", StringComparison.OrdinalIgnoreCase)) { Stop(); return; }
-        if (parts[0].Equals("receive", StringComparison.OrdinalIgnoreCase)) Start(TradeMode.Receive, 0);
+        if (parts[0].Equals("receive", StringComparison.OrdinalIgnoreCase))
+        {
+            var target = 0;
+            if (parts.Length == 2 && !int.TryParse(parts[1], NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out target))
+            {
+                Chat.PrintError("Usage: /xivtrade receive [target gil; 0 = unlimited]");
+                window.IsOpen = true;
+                return;
+            }
+            Start(TradeMode.Receive, target);
+        }
         else
         {
             var input = parts[0].Equals("send", StringComparison.OrdinalIgnoreCase) && parts.Length == 2 ? parts[1] : args;
             if (!int.TryParse(input, NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var amount))
             {
-                Chat.PrintError("Usage: /xivtrade send <gil> | receive | stop");
+                Chat.PrintError("Usage: /xivtrade send <gil> | receive [target] | stop");
                 window.IsOpen = true;
                 return;
             }

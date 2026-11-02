@@ -11,14 +11,14 @@ TradeSnapshot Idle(long wallet = 5_000_000) => new(true, false, 0, wallet);
 TradeSnapshot Offer(int gil, uint partner = 42, long wallet = 5_000_000, bool receive = false) =>
     new(true, true, partner, wallet, 3, receive ? 4 : 3, receive ? 0 : gil, receive ? gil : 0);
 
-TradeSession Start(TradeMode mode = TradeMode.Send, int total = 2_500_000, long wallet = 5_000_000)
+TradeSession Start(TradeMode mode = TradeMode.Send, int? total = null, long wallet = 5_000_000)
 {
     var session = new TradeSession();
-    Check(session.Start(mode, total, 42, Idle(wallet), 0), "start");
+    Check(session.Start(mode, total ?? (mode == TradeMode.Send ? 2_500_000 : 0), 42, Idle(wallet), 0), "start");
     return session;
 }
 
-long Finish(TradeSession s, int amount, long wallet, long now, uint partner = 42)
+long Finish(TradeSession s, int amount, long wallet, long now, uint partner = 42, bool completesTarget = false)
 {
     var offer = Offer(amount, partner, wallet, s.Mode == TradeMode.Receive);
     Check(s.Tick(offer, now) == TradeStep.None, "wait for stable offer");
@@ -27,7 +27,7 @@ long Finish(TradeSession s, int amount, long wallet, long now, uint partner = 42
     Check(s.Tick(locked, now + 1202) == TradeStep.Confirm, "confirm locked trade");
     Check(s.Tick(locked with { DialogOpen = true, TradeDialog = true }, now + 1803) == TradeStep.AcceptDialog, "accept trade-owned dialog");
     var after = wallet + (s.Mode == TradeMode.Receive ? amount : -amount);
-    s.Tick(Idle(after), now + 2404);
+    Check(s.Tick(Idle(after), now + 2404) == (completesTarget ? TradeStep.Completed : TradeStep.None), "completion notification only at verified target");
     return now + 3005;
 }
 
@@ -40,9 +40,9 @@ var tick = Finish(send, 1_000_000, 5_000_000, 1400);
 Check(send.Running && send.Completed == 1_000_000 && send.Remaining == 1_500_000, "first transfer only counted once verified");
 Check(send.Tick(Idle(4_000_000), tick) == TradeStep.Open, "next trade opens");
 tick = Finish(send, 1_000_000, 4_000_000, tick + 700);
-Finish(send, 500_000, 3_000_000, tick + 700);
+Finish(send, 500_000, 3_000_000, tick + 700, completesTarget: true);
 Check(!send.Running && send.Completed == 2_500_000 && send.Trades == 3, "send total and stop");
-send.Tick(Idle(2_500_000), tick + 9999);
+Check(send.Tick(Idle(2_500_000), tick + 9999) == TradeStep.None, "completion notification is not repeated");
 Check(send.Completed == 2_500_000, "no double completion");
 
 // The receiver listens indefinitely, handles different players, and never offers gil.
@@ -58,7 +58,7 @@ Check(receive.Completed == 579, "stop preserves totals");
 foreach (var amount in new[] { 1, 999_999, 1_000_000 })
 {
     var single = Start(total: amount);
-    Finish(single, amount, 5_000_000, 700);
+    Finish(single, amount, 5_000_000, 700, completesTarget: true);
     Check(!single.Running && single.Completed == amount, "boundary transfer");
 }
 
@@ -114,7 +114,7 @@ late.Tick(Offer(1_000_000), 1400);
 late.Tick(Offer(1_000_000) with { LocalState = 4, RemoteState = 4 }, 2100);
 late.Tick(Idle(), 2800);
 Check(late.Completed == 0, "await delayed wallet update");
-late.Tick(Idle(4_000_000), 5000);
+Check(late.Tick(Idle(4_000_000), 5000) == TradeStep.Completed, "delayed wallet update triggers completion notification");
 Check(late.Completed == 1_000_000 && !late.Running, "delayed wallet update verified");
 
 var dialog = Start();
@@ -151,5 +151,47 @@ Finish(full, 100, TradeSession.MaxGil - 100, 700);
 Check(!full.Running && full.Completed == 100, "stop when wallet reaches cap");
 var overflow = Start(TradeMode.Receive, wallet: TradeSession.MaxGil - 99);
 Check(overflow.Tick(Offer(100, wallet: TradeSession.MaxGil - 99, receive: true), 700) == TradeStep.Cancel, "wallet overflow rejected");
+
+// A configured receive target completes once, across multiple trades and different senders.
+var targetReceive = Start(TradeMode.Receive, total: 1_000);
+tick = Finish(targetReceive, 400, 5_000_000, 700, partner: 88);
+Check(targetReceive.Running && targetReceive.Completed == 400 && targetReceive.Remaining == 600, "partial receive does not complete target");
+Finish(targetReceive, 600, 5_000_400, tick, partner: 99, completesTarget: true);
+Check(!targetReceive.Running && targetReceive.Completed == 1_000 && targetReceive.Trades == 2, "receive target stops at verified total");
+Check(targetReceive.Status.StartsWith("Received 1,000"), "receive success status is preserved");
+Check(targetReceive.Tick(Idle(5_001_000), tick + 10_000) == TradeStep.None, "receive completion notification is not repeated");
+
+// An overpayment cannot trigger completion or silently exceed the requested total.
+var tooMuch = Start(TradeMode.Receive, total: 1_000);
+tick = Finish(tooMuch, 400, 5_000_000, 700);
+Check(tooMuch.Tick(Offer(601, wallet: 5_000_400, receive: true), tick) == TradeStep.Cancel, "overpayment beyond remaining target is canceled");
+Check(!tooMuch.Running && tooMuch.Completed == 400 && tooMuch.Remaining == 600, "overpayment does not count as completed");
+Check(tooMuch.Tick(Idle(5_000_400), tick + 1000) == TradeStep.None, "overpayment does not raise completion afterward");
+
+var receiveCanceled = Start(TradeMode.Receive, total: 100);
+receiveCanceled.Tick(Offer(100, receive: true), 700);
+receiveCanceled.Tick(Offer(100, receive: true), 1400);
+receiveCanceled.Tick(Offer(100, receive: true) with { LocalState = 4 }, 2100);
+Check(receiveCanceled.Tick(Idle(), 2800) == TradeStep.None, "closed receive window without gil does not notify");
+Check(receiveCanceled.Tick(Idle(), 7900) == TradeStep.None && !receiveCanceled.Running, "canceled receive target stops without completion");
+
+var stopped = Start(total: 100);
+stopped.Tick(Offer(100), 700);
+stopped.Tick(Offer(100), 1400);
+stopped.Stop();
+Check(stopped.Tick(Idle(4_999_900), 2100) == TradeStep.None && stopped.Completed == 0, "manual stop does not trigger completion sound");
+
+var restart = Start(total: 5);
+tick = Finish(restart, 5, 5_000_000, 700, completesTarget: true);
+Check(restart.Start(TradeMode.Send, 7, 42, Idle(4_999_995), tick), "start a new sequence after completion");
+Finish(restart, 7, 4_999_995, tick + 700, completesTarget: true);
+Check(restart.Completed == 7 && restart.Trades == 1, "new sequence gets its own completion notification");
+
+var exactCap = Start(TradeMode.Receive, total: 100, wallet: TradeSession.MaxGil - 100);
+Finish(exactCap, 100, TradeSession.MaxGil - 100, 700, completesTarget: true);
+Check(!exactCap.Running && exactCap.Completed == 100, "target at wallet capacity still completes normally");
+Check(!invalid.Start(TradeMode.Receive, -1, 0, Idle(), 0), "reject negative receive target");
+Check(!invalid.Start(TradeMode.Receive, TradeSession.MaxGil + 1, 0, Idle(), 0), "reject excessive receive target");
+Check(!invalid.Start(TradeMode.Receive, 100, 0, Idle(TradeSession.MaxGil - 99), 0), "reject receive target above available wallet capacity");
 
 Console.WriteLine($"Passed {count} trade session checks. Native game interaction requires live validation.");
