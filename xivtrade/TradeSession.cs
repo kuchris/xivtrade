@@ -3,7 +3,7 @@ using System;
 namespace XivTrade;
 
 internal enum TradeMode { Send, Receive }
-internal enum TradeStep { None, Open, SetGil, Lock, Confirm, AcceptDialog, Cancel, Completed }
+internal enum TradeStep { None, Open, SetGil, Lock, AcceptDialog, Cancel, Completed }
 
 // Values match the client's TradeState enum. Kept independent for offline verification.
 internal readonly record struct TradeSnapshot(
@@ -20,6 +20,7 @@ internal sealed class TradeSession
     private long nextAction;
     private long stableSince;
     private long walletBefore;
+    private long lockedAt;
     private uint currentPartner;
     private int offer;
     private int lockedOffer;
@@ -156,10 +157,16 @@ internal sealed class TradeSession
 
         if (Mode == TradeMode.Send && s.LocalState == 3 && s.LocalGil != amount)
         {
-            nextAction = now + 600;
+            // Each change makes the partner press Trade again, so give the window time to show the amount.
+            nextAction = now + 2_000;
+            Status = $"Offering {amount:N0} gil…";
             return TradeStep.SetGil;
         }
-        if (amount == 0 || s.LocalState < 3) return TradeStep.None;
+        if (amount == 0 || s.LocalState < 3)
+        {
+            if (Mode == TradeMode.Receive) Status = "Trade opened. Waiting for the sender's gil offer…";
+            return TradeStep.None;
+        }
         if (offer != amount) { offer = amount; stableSince = now; }
         if (now - stableSince < 600) return TradeStep.None;
         if (Mode == TradeMode.Receive && s.RemoteState < 4)
@@ -167,28 +174,22 @@ internal sealed class TradeSession
             Status = "Waiting for the sender to lock their gil offer…";
             return TradeStep.None;
         }
-        if (s.LocalState == 3 && !lockRequested)
+        // Press Trade once the offer is stable. Press again if the first click did not register.
+        if (s.LocalState == 3 && (!lockRequested || now - lockedAt >= 3_000))
         {
             lockedOffer = amount;
             lockRequested = true;
+            lockedAt = now;
             nextAction = now + 600;
             Status = $"Confirming {amount:N0} gil…";
             return TradeStep.Lock;
         }
-        if (lockRequested && s.LocalState >= 4 && s.RemoteState >= 4)
+        // Once both sides pressed Trade, the game asks "Complete trade?".
+        if (lockRequested && s.LocalState >= 4 && s.RemoteState >= 4 && s.TradeDialog)
         {
-            if (s.TradeDialog)
-            {
-                confirmRequested = true;
-                nextAction = now + 600;
-                return TradeStep.AcceptDialog;
-            }
-            if (!confirmRequested)
-            {
-                confirmRequested = true;
-                nextAction = now + 600;
-                return TradeStep.Confirm;
-            }
+            confirmRequested = true;
+            nextAction = now + 600;
+            return TradeStep.AcceptDialog;
         }
         return TradeStep.None;
     }

@@ -20,6 +20,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IObjectTable Objects { get; private set; } = null!;
     [PluginService] internal static IGameGui GameGui { get; private set; } = null!;
     [PluginService] internal static IChatGui Chat { get; private set; } = null!;
+    [PluginService] internal static IDataManager Data { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
 
     private readonly WindowSystem windows = new("xivtrade");
@@ -34,7 +35,7 @@ public sealed class Plugin : IDalamudPlugin
     public Plugin()
     {
         Settings = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
-        client = new TradeClient(GameGui, ClientState);
+        client = new TradeClient(GameGui, ClientState, Data);
         window = new MainWindow(this);
         windows.AddWindow(window);
         Framework.Update += Update;
@@ -80,7 +81,12 @@ public sealed class Plugin : IDalamudPlugin
                 Session.Stop("The recipient is no longer nearby. Automation stopped.");
                 return;
             }
-            var step = Session.Tick(client.Read(), Environment.TickCount64);
+            var snapshot = client.Read();
+            var status = Session.Status;
+            var step = Session.Tick(snapshot, Environment.TickCount64);
+            // Debug lines land in dalamud.log, so a stalled trade can be traced afterwards.
+            if (step != TradeStep.None || Session.Status != status)
+                Log.Debug($"{step} | {Session.Status} | {snapshot}");
             if (step == TradeStep.Completed)
             {
                 if (Settings.CompletionSoundEnabled) PlayCompletionSound();

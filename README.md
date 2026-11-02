@@ -50,7 +50,7 @@ dotnet run --project tests/xivtrade.Checks.csproj --configuration Release
 
 The build script restores locked dependencies and produces `artifacts/xivtrade-1.0.1.0.zip` with a SHA256 checksum. The ZIP contains the DLL, manifest, dependency metadata, icon, license, and attribution notice.
 
-Offline checks cover session behavior. Native trade requests, agent events, and ownership of confirmation dialogs still need verification inside the matching live game build. Only confirmation dialogs linked to the Trade addon are eligible for automatic acceptance; an unrecognized dialog pauses the trade until it is closed or the session times out.
+Offline checks cover session behavior. Native trade requests, agent events, and ownership of confirmation dialogs still need verification inside the matching live game build. Only the game's "Complete trade?" confirmation (matched by its text, or linked to the Trade addon) is accepted automatically; an unrecognized dialog pauses the trade until it is closed or the session times out. Each automated step and status change is written to `dalamud.log` at debug level.
 
 ## Project history
 

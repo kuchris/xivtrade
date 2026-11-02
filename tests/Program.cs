@@ -24,8 +24,8 @@ long Finish(TradeSession s, int amount, long wallet, long now, uint partner = 42
     Check(s.Tick(offer, now) == TradeStep.None, "wait for stable offer");
     Check(s.Tick(offer, now + 601) == TradeStep.Lock, "lock stable gil");
     var locked = offer with { LocalState = 4, RemoteState = 4 };
-    Check(s.Tick(locked, now + 1202) == TradeStep.Confirm, "confirm locked trade");
-    Check(s.Tick(locked with { DialogOpen = true, TradeDialog = true }, now + 1803) == TradeStep.AcceptDialog, "accept trade-owned dialog");
+    Check(s.Tick(locked, now + 1202) == TradeStep.None, "both locked waits for the complete trade prompt");
+    Check(s.Tick(locked with { DialogOpen = true, TradeDialog = true }, now + 1803) == TradeStep.AcceptDialog, "accept complete trade prompt");
     var after = wallet + (s.Mode == TradeMode.Receive ? amount : -amount);
     Check(s.Tick(Idle(after), now + 2404) == (completesTarget ? TradeStep.Completed : TradeStep.None), "completion notification only at verified target");
     return now + 3005;
@@ -36,7 +36,9 @@ var send = Start();
 Check(send.Tick(Idle(), 601) == TradeStep.Open, "open pinned recipient");
 Check(send.RecipientId == 42, "recipient pinned");
 Check(send.Tick(Offer(0), 700) == TradeStep.SetGil, "set gil after window ready");
-var tick = Finish(send, 1_000_000, 5_000_000, 1400);
+Check(send.Tick(Offer(0), 1400) == TradeStep.None, "give the window time to show the gil");
+Check(send.Tick(Offer(0), 2700) == TradeStep.SetGil, "set gil again if it never showed");
+var tick = Finish(send, 1_000_000, 5_000_000, 4700);
 Check(send.Running && send.Completed == 1_000_000 && send.Remaining == 1_500_000, "first transfer only counted once verified");
 Check(send.Tick(Idle(4_000_000), tick) == TradeStep.Open, "next trade opens");
 tick = Finish(send, 1_000_000, 4_000_000, tick + 700);
@@ -91,6 +93,17 @@ notLocked.Tick(pending, 700);
 Check(notLocked.Tick(pending, 1400) == TradeStep.None, "receiver waits for sender lock");
 Check(notLocked.Tick(pending with { RemoteGil = 0 }, 2100) == TradeStep.None, "zero gil never locks");
 
+var opened = Start(TradeMode.Receive);
+Check(opened.Tick(Offer(0, receive: true) with { RemoteState = 3 }, 700) == TradeStep.None, "receive waits for an offer");
+Check(opened.Status.StartsWith("Trade opened"), "receive reports the open trade window");
+
+var retry = Start(TradeMode.Receive);
+retry.Tick(Offer(100, receive: true), 700);
+Check(retry.Tick(Offer(100, receive: true), 1400) == TradeStep.Lock, "press trade");
+Check(retry.Tick(Offer(100, receive: true), 2100) == TradeStep.None, "give the trade press time to register");
+Check(retry.Tick(Offer(100, receive: true), 4400) == TradeStep.Lock, "press trade again when it did not register");
+Check(retry.Tick(Offer(100, receive: true) with { LocalState = 4 }, 5100) == TradeStep.None, "no further press once locked");
+
 var changed = Start(TradeMode.Receive);
 changed.Tick(Offer(100, receive: true), 700);
 Check(changed.Tick(Offer(100, receive: true), 1400) == TradeStep.Lock, "lock receive offer");
@@ -111,7 +124,7 @@ Check(!canceled.Running && canceled.Completed == 0, "cancellation stops after se
 var late = Start(total: 1_000_000);
 late.Tick(Offer(1_000_000), 700);
 late.Tick(Offer(1_000_000), 1400);
-late.Tick(Offer(1_000_000) with { LocalState = 4, RemoteState = 4 }, 2100);
+late.Tick(Offer(1_000_000) with { LocalState = 4, RemoteState = 4, DialogOpen = true, TradeDialog = true }, 2100);
 late.Tick(Idle(), 2800);
 Check(late.Completed == 0, "await delayed wallet update");
 Check(late.Tick(Idle(4_000_000), 5000) == TradeStep.Completed, "delayed wallet update triggers completion notification");
