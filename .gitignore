@@ -3,3 +3,6 @@ obj/
 bin/
 *.user
 artifacts/
+# Old dependency/build directories retained locally after the remake.
+/ECommons/
+/Gillionaire/

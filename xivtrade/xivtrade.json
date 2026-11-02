@@ -1,0 +1,12 @@
+{
+  "Author": "kuchris",
+  "Name": "xivtrade",
+  "RepoUrl": "https://github.com/kuchris/xivtrade",
+  "Punchline": "Send and receive gil with a simple trade window.",
+  "Description": "Send gil across consecutive trades, or automatically receive pure gil trades from any player. Use /xivtrade.",
+  "ApplicableVersion": "any",
+  "Tags": [
+    "gil",
+    "trade"
+  ]
+}

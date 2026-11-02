@@ -1,39 +1,43 @@
-# Gillionaire
+# xivtrade
 
-Gil trading plugin originally by [voidstar0](https://github.com/voidstar0/Gillionaire). This is the fork maintained by **kuchris**, with Dalamud API 15 support, a trade window, and fixes for consecutive trades.
+A small Dalamud plugin for sending and receiving gil.
 
-## Install
+- **Send:** select a player, enter the total, and press **Send gil**. Totals over 1,000,000 gil are split across consecutive trades. The recipient stays pinned even if you change targets.
+- **Receive:** press **Start receiving** to automatically accept pure gil trades from any player. Keep receiving until you press **Stop** or your wallet is full. The sender initiates each trade and locks their offer first.
+- **Stop:** stops automation and cancels the open trade. Completed trades remain in the session totals.
 
-Add this URL in `/xlsettings` → **Experimental** → **Custom Plugin Repositories**, enable it, and save:
+Trades containing items, unexpected outgoing gil in receive mode, changed offers, or a different recipient stop automation. Progress advances only after the trade window closes and the exact expected wallet change is observed. Canceled or unverified trades do not count as completed.
 
-```text
-https://raw.githubusercontent.com/kuchris/DalamudPlugins/main/repo.json
-```
+## Commands
 
-Open `/xlplugins`, find **Gillionaire**, and install it. The same repository also includes XIV AI Chat and MoreMacros. Installation packages for this fork are published under [kuchris/Gillionaire releases](https://github.com/kuchris/Gillionaire/releases).
+| Command | Action |
+| --- | --- |
+| `/xivtrade` | Open the window |
+| `/xivtrade send 2500000` | Send 2,500,000 gil to the selected player |
+| `/xivtrade receive` | Receive gil from any player until stopped |
+| `/xivtrade stop` | Stop automation |
 
-The plugin installer lists `kuchris` for this fork. The original author and upstream project are credited above.
+`/giltrade` remains an alias, including `/giltrade <amount>`.
 
-## How To Use
+## Development install
 
-Target a player, then use `/giltrade` to open the Gillionaire window. Enter the total amount and select **Start trading**. Amounts over 1,000,000 gil are split across consecutive trades. You can also start immediately from chat with `/giltrade <amount>`.
+Requires Dalamud API 15. Disable Gillionaire before loading xivtrade: both register `/giltrade`.
 
-https://github.com/user-attachments/assets/b64ee237-8180-40b0-933a-e2002f051444
+Build the plugin, add the absolute path to `xivtrade/bin/x64/Release/xivtrade.dll` under `/xlsettings` → **Experimental** → **Dev Plugin Locations**, then enable **xivtrade** under `/xlplugins` → **Dev Tools**.
 
-### Activating as a development plugin
+## Build and verify
 
-1. Launch the game and use `/xlsettings` in chat or `xlsettings` in the Dalamud Console to open up the Dalamud settings.
-    * In here, go to `Experimental`, and add the full path to the `Gillionaire.dll` to the list of Dev Plugin Locations.
-2. Next, use `/xlplugins` (chat) or `xlplugins` (console) to open up the Plugin Installer.
-    * In here, go to `Dev Tools > Installed Dev Plugins`, and the `Gillionaire` should be visible. Enable it.
-
-## Build
-
-Requires Windows, .NET 10, and matching Dalamud API 15 development assemblies. Initialize the ECommons submodule, restore locked dependencies, and build:
+Requires Windows, .NET 10, and the matching Dalamud development assemblies at `%APPDATA%/XIVLauncher/addon/Hooks/dev` (or set `DALAMUD_HOME`). There are no runtime dependencies beyond Dalamud.
 
 ```powershell
-git submodule update --init --recursive
 ./build.ps1
+dotnet run --project tests/xivtrade.Checks.csproj --configuration Release
 ```
 
-The script restores locked dependencies, builds the Release configuration, and writes `artifacts/Gillionaire-<version>.zip`. The package includes the ECommons dependency and its license notice, with no debug symbols. After publishing this ZIP, update the `Gillionaire` entry in the shared [DalamudPlugins catalogue](https://github.com/kuchris/DalamudPlugins).
+The build script restores locked dependencies and produces `artifacts/xivtrade-1.0.0.0.zip` with a SHA256 checksum. The ZIP contains the DLL, manifest, dependency metadata, license, and attribution notice.
+
+Offline checks cover session behavior. Native trade requests, agent events, and ownership of confirmation dialogs still need verification inside the matching live game build. Only confirmation dialogs linked to the Trade addon are eligible for automatic acceptance; an unrecognized dialog pauses the trade until it is closed or the session times out.
+
+## Project history
+
+xivtrade remakes [Gillionaire](https://github.com/voidstar0/Gillionaire), originally by voidstar0 and later maintained by kuchris. The trade loop and UI have been rewritten, and ECommons is no longer required. See [NOTICE.md](NOTICE.md) for attribution. The project retains the earlier declared AGPL-3.0-or-later license.
