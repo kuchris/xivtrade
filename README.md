@@ -48,9 +48,9 @@ Requires Windows, .NET 10, and the matching Dalamud development assemblies at `%
 dotnet run --project tests/xivtrade.Checks.csproj --configuration Release
 ```
 
-The build script restores locked dependencies and produces `artifacts/xivtrade-1.0.1.0.zip` with a SHA256 checksum. The ZIP contains the DLL, manifest, dependency metadata, icon, license, and attribution notice.
+The build script restores locked dependencies and produces `artifacts/xivtrade-1.0.2.0.zip` with a SHA256 checksum. The ZIP contains the DLL, manifest, dependency metadata, icon, license, and attribution notice.
 
-Offline checks cover session behavior. Native trade requests, agent events, and ownership of confirmation dialogs still need verification inside the matching live game build. Only the game's "Complete trade?" confirmation (matched by its text, or linked to the Trade addon) is accepted automatically; an unrecognized dialog pauses the trade until it is closed or the session times out. Each automated step and status change is written to `dalamud.log` at debug level.
+Offline checks cover session behavior. The trade window interaction (gil fields, the Trade button, and the "Complete trade?" prompt) was verified in game for sending and receiving; recheck it after game patches that change the Trade window. Only the game's "Complete trade?" confirmation (matched by its text, or linked to the Trade addon) is accepted automatically; an unrecognized dialog pauses the trade until it is closed or the session times out. Each automated step and status change is written to `dalamud.log` at debug level.
 
 ## Project history
 
